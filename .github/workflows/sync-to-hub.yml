@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Hugging Face Hub CLI
+      - name: Install Hugging Face Hub
         run: |
           pip install --upgrade huggingface-hub
 
@@ -46,7 +46,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          huggingface-cli login --token $HF_TOKEN --add-to-git-credential
+          hf auth login --token $HF_TOKEN --add-to-git-credential
 
       - name: Clone HF Space Repository
         run: |
