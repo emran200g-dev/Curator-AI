@@ -69,8 +69,15 @@ jobs:
           echo "✓ Content synced to local HF Space repo"
 
       - name: Commit and Push to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           cd hf_space
+          
+          # Configure git to use HF token for auth
+          git config credential.helper store
+          echo "https://Emran5008:${HF_TOKEN}@huggingface.co" > ~/.git-credentials
+          
           git add -A
           
           if git diff --cached --quiet; then
