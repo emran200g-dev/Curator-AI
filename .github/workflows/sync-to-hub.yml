@@ -1,20 +1,30 @@
 name: Sync to Hugging Face Hub
+
 on:
   push:
-    branches: [main]
+    branches: [main, master]
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  sync:
+  sync-to-hub:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Configure Git and Push
+          lfs: true
+
+      - name: Push to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config --global user.email "emran.dev.contact@gmail.com"
-          git config --global user.name "Emran5008"
-          git remote add space https://huggingface.co/spaces/Emran5008/curator-ai-backend
-          git push --force https://Emran5008:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Emran5008/curator-ai-backend main
+          # 1. Clean up potential old reference mismatches
+          git remote rm hf 2>/dev/null || true
+          
+          # 2. Add the completely corrected URL structure (lowercase usernames/spaces matching your log)
+          git remote add hf https://emran200g:$HF_TOKEN@huggingface.co/spaces/emran200g/curator-ai
+          
+          # 3. Force push the clean code structure to Hugging Face's main branch
+          git push --force hf HEAD:refs/heads/main
