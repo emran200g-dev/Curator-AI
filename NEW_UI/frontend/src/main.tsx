@@ -3,5 +3,11 @@
   import App from "./app/App.tsx";
   import "./styles/index.css";
 
+  pendo.initialize({
+    visitor: {
+      id: ''
+    }
+  });
+
   createRoot(document.getElementById("root")!).render(<App />);
   
