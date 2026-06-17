@@ -42,15 +42,19 @@ jobs:
           
           echo "✓ Files prepared for sync"
 
-      - name: Authenticate with Hugging Face
+      - name: Set up SSH for Hugging Face
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SSH_KEY: ${{ secrets.HF_SSH_KEY }}
         run: |
-          hf auth login --token $HF_TOKEN --add-to-git-credential
+          mkdir -p ~/.ssh
+          echo "$HF_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 huggingface.co >> ~/.ssh/known_hosts 2>/dev/null || true
+          git config --global url.ssh://git@huggingface.co/.insteadOf https://huggingface.co/
 
       - name: Clone HF Space Repository
         run: |
-          git clone https://huggingface.co/spaces/Emran5008/curator-ai-backend hf_space
+          git clone git@huggingface.co:spaces/Emran5008/curator-ai-backend hf_space
           cd hf_space
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "GitHub Actions Bot"
@@ -69,15 +73,8 @@ jobs:
           echo "✓ Content synced to local HF Space repo"
 
       - name: Commit and Push to HF Space
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           cd hf_space
-          
-          # Configure git to use HF token for auth
-          git config credential.helper store
-          echo "https://Emran5008:${HF_TOKEN}@huggingface.co" > ~/.git-credentials
-          
           git add -A
           
           if git diff --cached --quiet; then
