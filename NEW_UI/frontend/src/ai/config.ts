@@ -20,5 +20,5 @@ export const AI_CONFIG = {
     FACE_LANDMARKER: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
   },
 
-  STORAGE_API: import.meta.env.VITE_STORAGE_API_URL || "http://localhost:8080",
+  STORAGE_API: import.meta.env.VITE_STORAGE_API_URL || "http://localhost:7860",
 };

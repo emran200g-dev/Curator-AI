@@ -1,4 +1,4 @@
-# Deployment Guide — GitHub + Vercel + Koyeb
+# Deployment Guide — GitHub + Vercel + Hugging Face Spaces
 
 ## Project Structure
 
@@ -10,7 +10,7 @@ curator-ai/
 │   ├── package.json
 │   ├── vercel.json
 │   └── ...
-├── backend/           ← Python/FastAPI (deploy to Koyeb)
+├── backend/           ← Python/FastAPI (deploy to Hugging Face Spaces)
 │   ├── main.py
 │   ├── Dockerfile
 │   └── requirements.txt
@@ -52,40 +52,59 @@ Replace `YOUR_USERNAME` with your GitHub username.
 
 ---
 
-## PART 2 — Deploy Backend to Koyeb
+## PART 2 — Deploy Backend to Hugging Face Spaces
 
-### Step 1: Create a Koyeb account
-1. Go to https://www.koyeb.com
-2. Click **Sign up** → sign up with GitHub
+### Step 1: Create a Hugging Face account
+1. Go to https://huggingface.co
+2. Click **Sign Up** and follow the steps
 
-### Step 2: Create an app
-1. Click **Create App**
-2. Select **GitHub/Git** as the build method
-3. Name: `curator-backend`
+### Step 2: Create a new Space
+1. Go to https://huggingface.co/new-space
+2. Fill in:
+   - **Space name**: `curator-backend`
+   - **License**: Choose any (e.g., MIT)
+   - **SDK**: Select **Docker**
+   - **Visibility**: Public (or Private if you prefer)
+3. Click **Create Space**
 
-### Step 3: Connect your GitHub repo
-1. Under **Source**, select **GitHub**
-2. Authorize Koyeb
-3. Select your `curator-ai` repository
-4. Set these values:
-   - **Workdir / Root Directory**: `NEW_UI/backend`
-   - **Dockerfile path**: `Dockerfile` (relative to the root directory above)
-   - **Port**: `8080`
+### Step 3: Add your backend files
+After the Space is created, you have two options:
+
+**Option A — Upload via web UI:**
+1. In your Space, go to the **Files** tab
+2. Click **Upload files**
+3. Upload these files from your `NEW_UI/backend/` folder:
+   - `main.py`
+   - `Dockerfile`
+   - `requirements.txt`
+
+**Option B — Push via Git:**
+```
+cd C:\Users\emran\Downloads\Curator AI\NEW_UI\backend
+git init
+git remote add space https://huggingface.co/spaces/YOUR_USERNAME/curator-backend
+git add .
+git commit -m "Deploy backend"
+git push space main
+```
+Replace `YOUR_USERNAME` with your Hugging Face username.
 
 ### Step 4: Set environment variables
-Click **Environment Variables** and add:
-```
-ROBOFLOW_API_KEY = your_roboflow_api_key_here
-```
-Get your API key from https://app.roboflow.com/settings/api
+1. In your Space, go to **Settings** → **Repository secrets**
+2. Click **New secret**
+3. Add:
+   - **Name**: `ROBOFLOW_API_KEY`
+   - **Value**: Your Roboflow API key (get it from https://app.roboflow.com/settings/api)
 
-### Step 5: Deploy
-1. Click **Deploy**
-2. Wait 2-3 minutes
-3. Copy your Koyeb URL (e.g., `https://curator-backend-xxxx.koyeb.app`)
+### Step 5: Wait for build
+1. Hugging Face will automatically build your Dockerfile
+2. Go to the **App** tab to see the build logs
+3. Wait 3-5 minutes for the build to complete
+4. Once running, your backend URL will be:
+   `https://YOUR_USERNAME-curator-backend.hf.space`
 
 ### Step 6: Test
-Go to: `https://curator-backend-xxxx.koyeb.app/health`
+Go to: `https://YOUR_USERNAME-curator-backend.hf.space/health`
 You should see: `{"status":"ok"}`
 
 ---
@@ -110,9 +129,9 @@ You should see: `{"status":"ok"}`
 ### Step 4: Set environment variables
 Click **Environment Variables** and add:
 ```
-VITE_STORAGE_API_URL = https://curator-backend-xxxx.koyeb.app
+VITE_STORAGE_API_URL = https://YOUR_USERNAME-curator-backend.hf.space
 ```
-Replace `xxxx` with your actual Koyeb URL.
+Replace `YOUR_USERNAME` with your Hugging Face username.
 
 ### Step 5: Deploy
 1. Click **Deploy**
@@ -126,9 +145,9 @@ Replace `xxxx` with your actual Koyeb URL.
 | Service | URL |
 |---------|-----|
 | GitHub | https://github.com/YOUR_USERNAME/curator-ai |
-| Backend | https://curator-backend-xxxx.koyeb.app |
+| Backend | https://YOUR_USERNAME-curator-backend.hf.space |
 | Frontend | https://curator-ai-xxxx.vercel.app |
-| Health Check | https://curator-backend-xxxx.koyeb.app/health |
+| Health Check | https://YOUR_USERNAME-curator-backend.hf.space/health |
 
 ---
 
@@ -141,15 +160,28 @@ Replace `xxxx` with your actual Koyeb URL.
 
 ---
 
+## Important Notes
+
+- **Port 7860**: Hugging Face Spaces internally maps to port 7860. Our Dockerfile already configures uvicorn to listen on this port.
+- **Free tier**: HF Spaces free CPU Basic tier will sleep after 48 hours of inactivity. First request after sleep takes 20-30 seconds.
+- **No persistent storage**: The backend processes images in-memory. No files are saved to disk.
+
+---
+
 ## Troubleshooting
 
 **Frontend can't reach backend:**
 - Check `VITE_STORAGE_API_URL` in Vercel settings
+- Make sure the URL is `https://YOUR_USERNAME-curator-backend.hf.space` (no trailing slash)
 - Redeploy after changing env vars
 
-**Koyeb app sleeping:**
-- Free tier sleeps after inactivity
-- First request takes 30-60 seconds to wake up
+**HF Spaces build fails:**
+- Make sure your `backend/` folder contains `main.py`, `Dockerfile`, and `requirements.txt`
+- Check the **Build logs** tab in your Space for errors
+
+**HF Spaces shows 502 Bad Gateway:**
+- The app is still building or starting up — wait 30 seconds and refresh
+- If it persists, check the **Logs** tab for errors
 
 **Vercel build fails:**
-- Make sure Root Directory is `NEW_UI/frontend`
+- Make sure Root Directory is `NEW_UI/frontend` (exact casing matters)
