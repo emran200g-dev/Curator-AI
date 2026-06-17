@@ -1,16 +1,103 @@
 name: Sync to Hugging Face Hub
+
 on:
   push:
     branches: [main]
+
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: huggingface/hub-sync@v0.1.0
+      - name: Checkout GitHub Repository
+        uses: actions/checkout@v4
         with:
-          github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: Emran5008/curator-ai-backend
-          hf_token: ${{ secrets.HF_TOKEN }}
-          repo_type: space
-          space_sdk: docker
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Hugging Face Hub CLI
+        run: |
+          pip install --upgrade huggingface-hub gitpython
+
+      - name: Prepare Files for HF Space
+        run: |
+          # Create a clean directory for HF sync (excludes .git, node_modules, etc.)
+          mkdir -p hf_sync_tmp
+          
+          # Copy files, excluding unnecessary artifacts
+          rsync -av \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='.DS_Store' \
+            --exclude='*.log' \
+            --exclude='__pycache__' \
+            --exclude='.pytest_cache' \
+            --exclude='dist' \
+            --exclude='build' \
+            --exclude='.env' \
+            ./ hf_sync_tmp/
+          
+          echo "Files prepared for sync"
+          ls -la hf_sync_tmp/ | head -20
+
+      - name: Clone HF Space Repository
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git clone https://huggingface.co/spaces/Emran5008/curator-ai-backend hf_space
+          cd hf_space
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "GitHub Actions Bot"
+
+      - name: Sync Content to HF Space
+        run: |
+          # Clear old content (keep .git and .gitattributes for HF)
+          cd hf_space
+          find . -maxdepth 1 -type f ! -name '.gitattributes' ! -name '.gitignore' -delete
+          find . -maxdepth 1 -type d ! -name '.git' ! -name '.' ! -name '..' -exec rm -rf {} + 2>/dev/null || true
+          
+          # Copy fresh files from prepared sync directory
+          cp -r ../hf_sync_tmp/* .
+          
+          echo "Sync complete. Current HF Space content:"
+          ls -la | head -20
+
+      - name: Commit and Push to HF Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd hf_space
+          
+          # Check for changes
+          git add -A
+          
+          if git diff --cached --quiet; then
+            echo "✓ No changes detected. Space is up to date."
+          else
+            git commit -m "Auto-sync from GitHub commit ${{ github.sha }}"
+            
+            # Push with explicit token auth
+            git push https://Emran5008:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/Emran5008/curator-ai-backend main
+            
+            echo "✓ Successfully synced to HF Space"
+          fi
+
+      - name: Report Sync Status
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "SYNC STATUS"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "GitHub Repo: ${{ github.repository }}"
+          echo "HF Space: Emran5008/curator-ai-backend"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "Status: Complete"
+          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
