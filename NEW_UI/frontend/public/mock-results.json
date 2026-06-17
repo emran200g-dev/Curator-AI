@@ -1,0 +1,85 @@
+{
+  "session_id": "mock-demo-session",
+  "title": "Sarah & Mark Wedding 2025",
+  "eventDate": "2025-06-14",
+  "analyzedAt": "2025-06-14T18:00:00.000Z",
+  "usedMockData": true,
+  "images": [
+    {
+      "id": "mock-1",
+      "filename": "ceremony_042.jpg",
+      "category": "keeper",
+      "sharpnessScore": 0.87,
+      "confidence": 87,
+      "caption": "Sharp ceremony moment with excellent natural light and crisp focus on the couple.",
+      "eyesClosed": false,
+      "isDuplicate": false,
+      "objects": [],
+      "objectsLoaded": false,
+      "burstGroupId": 0
+    },
+    {
+      "id": "mock-2",
+      "filename": "ceremony_043.jpg",
+      "category": "duplicate",
+      "sharpnessScore": 0.72,
+      "confidence": 72,
+      "caption": "Near-identical burst frame — grouped with ceremony_042.jpg (94% similarity).",
+      "eyesClosed": false,
+      "isDuplicate": true,
+      "objects": [],
+      "objectsLoaded": false,
+      "burstGroupId": 0
+    },
+    {
+      "id": "mock-3",
+      "filename": "reception_blur.jpg",
+      "category": "blurry",
+      "sharpnessScore": 0.18,
+      "confidence": 18,
+      "caption": "Motion blur detected — sharpness score 0.18 (below 0.30 threshold).",
+      "eyesClosed": false,
+      "isDuplicate": false,
+      "objects": [],
+      "objectsLoaded": false
+    },
+    {
+      "id": "mock-4",
+      "filename": "group_blink.jpg",
+      "category": "rejected",
+      "sharpnessScore": 0.65,
+      "confidence": 65,
+      "caption": "Eyes-closed detected via MediaPipe — EAR below threshold on 2 faces.",
+      "eyesClosed": true,
+      "isDuplicate": false,
+      "objects": [],
+      "objectsLoaded": false
+    },
+    {
+      "id": "mock-5",
+      "filename": "dance_floor.jpg",
+      "category": "keeper",
+      "sharpnessScore": 0.91,
+      "confidence": 91,
+      "caption": "High sharpness dance floor shot with open eyes and strong composition.",
+      "eyesClosed": false,
+      "isDuplicate": false,
+      "objects": [],
+      "objectsLoaded": false,
+      "burstGroupId": 1
+    },
+    {
+      "id": "mock-6",
+      "filename": "dance_floor_alt.jpg",
+      "category": "duplicate",
+      "sharpnessScore": 0.78,
+      "confidence": 78,
+      "caption": "Burst duplicate of dance_floor.jpg — lower sharpness, auto-rejected.",
+      "eyesClosed": false,
+      "isDuplicate": true,
+      "objects": [],
+      "objectsLoaded": false,
+      "burstGroupId": 1
+    }
+  ]
+}
