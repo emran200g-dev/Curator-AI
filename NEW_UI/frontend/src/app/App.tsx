@@ -168,9 +168,14 @@ export default function App() {
 
   // ── File handlers ─────────────────────────────────────────────────────────
 
-  const processFiles = useCallback((files: File[]) => {
+  const processFiles = useCallback((files: File[], uploadMethod = "unknown") => {
     const images = files.filter((f) => f.type.startsWith("image/"));
     if (!images.length) { toast.error("No image files found"); return; }
+    const fileTypes = new Set<string>();
+    images.forEach(f => { const ext = f.name.split('.').pop()?.toLowerCase(); if (ext) fileTypes.add(ext); });
+    let addedCount = 0;
+    let addedSizeBytes = 0;
+    let skippedCount = 0;
     setUploadedImages((prev) => {
       const existing = new Set(prev.map((p) => p.name + p.size));
       const fresh: UploadedImage[] = images
@@ -182,14 +187,26 @@ export default function App() {
           name: f.name,
           size: f.size,
         }));
+      addedCount = fresh.length;
+      addedSizeBytes = fresh.reduce((sum, f) => sum + f.size, 0);
+      skippedCount = images.length - fresh.length;
       if (fresh.length) toast.success(`Added ${fresh.length} image${fresh.length !== 1 ? "s" : ""}`);
       else toast.info("Images already in list");
       return [...prev, ...fresh];
     });
+    if (addedCount > 0) {
+      pendo.track("images_uploaded", {
+        imageCount: addedCount,
+        totalSizeBytes: addedSizeBytes,
+        uploadMethod,
+        duplicatesSkipped: skippedCount,
+        fileTypes: Array.from(fileTypes).join(","),
+      });
+    }
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); processFiles(Array.from(e.dataTransfer.files)); },
+    (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); processFiles(Array.from(e.dataTransfer.files), "drag_drop"); },
     [processFiles]
   );
 
@@ -199,6 +216,14 @@ export default function App() {
 
     setAnalysisState("analyzing");
     setAnalysisProgress(0);
+
+    pendo.track("project_analysis_started", {
+      projectTitle: projectTitle.trim().substring(0, 100),
+      eventDate,
+      imageCount: uploadedImages.length,
+      sessionId: sessionId || "",
+      totalUploadSizeBytes: uploadedImages.reduce((sum, img) => sum + img.size, 0),
+    });
 
     try {
       let sid = sessionId;
@@ -254,11 +279,29 @@ export default function App() {
 
       const k = mapped.filter((r) => r.category === "keeper").length;
       toast.success(`Analysis complete — ${k} keeper${k !== 1 ? "s" : ""} found`);
+
+      pendo.track("analysis_pipeline_completed", {
+        projectTitle: projectTitle.trim().substring(0, 100),
+        eventDate,
+        sessionId: sid || "",
+        totalImages: mapped.length,
+        keeperCount: k,
+        duplicateCount: mapped.filter((r) => r.category === "duplicate").length,
+        blurryCount: mapped.filter((r) => r.category === "blurry").length,
+        rejectedCount: mapped.filter((r) => r.category === "rejected").length,
+      });
+
       setActiveTab("gallery");
     } catch (err) {
       console.error(err);
       setAnalysisState("idle");
       toast.error(err instanceof Error ? err.message : "Analysis failed");
+      pendo.track("analysis_pipeline_failed", {
+        errorMessage: (err instanceof Error ? err.message : "Analysis failed").substring(0, 200),
+        projectTitle: projectTitle.trim().substring(0, 100),
+        imageCount: uploadedImages.length,
+        sessionId: sessionId || "",
+      });
     }
   }, [uploadedImages, projectTitle, eventDate, sessionId]);
 
@@ -286,6 +329,13 @@ export default function App() {
       setSelectedImage((prev) => (prev?.id === img.id ? updated : prev));
 
       toast.success(objects.length ? `Found ${objects.length} match(es) for "${nlPrompt}"` : "No matches found");
+      pendo.track("nl_object_search_completed", {
+        searchPrompt: nlPrompt.trim().substring(0, 100),
+        resultsCount: objects.length,
+        imageName: img.name,
+        imageId: img.id,
+        matchFound: objects.length > 0,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Object search failed");
     } finally {
@@ -314,6 +364,12 @@ export default function App() {
       const ids = filterImagesByPrompt(updated, nlPrompt);
       setObjectFilterIds(ids);
       toast.success(`Found ${ids.length} image(s) matching "${nlPrompt}"`);
+      pendo.track("global_object_search_completed", {
+        searchPrompt: nlPrompt.trim().substring(0, 100),
+        totalImages: analyzedImages.length,
+        matchingImagesCount: ids.length,
+        totalObjectsFound: updated.reduce((sum, img) => sum + img.objects.length, 0),
+      });
       setActiveTab("objects");
     } catch {
       toast.error("Search failed");
@@ -348,6 +404,13 @@ export default function App() {
       setAnalyzedImages((prev) => prev.map((p) => p.id === img.id ? updated : p));
       setSelectedImage((prev) => prev?.id === img.id ? updated : prev);
       toast.success(objects.length ? `Detected ${objects.length} object(s)` : "No objects detected");
+      pendo.track("object_detection_completed", {
+        imageName: img.name,
+        imageId: img.id,
+        objectsDetectedCount: objects.length,
+        objectLabels: objects.map((o) => o.label).join(",").substring(0, 200),
+        imageCategory: img.category,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Detection failed");
     } finally {
@@ -368,6 +431,12 @@ export default function App() {
         setCaptions((prev) => ({ ...prev, [img.id]: captions[0] }));
       }
       toast.success(captions.length ? `${captions.length} captions generated` : "No captions returned");
+      pendo.track("caption_generated", {
+        imageName: img.name,
+        imageId: img.id,
+        captionCount: captions.length,
+        imageCategory: img.category,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Caption failed");
     } finally {
@@ -389,6 +458,11 @@ export default function App() {
         } catch { /* skip failed */ }
       }
       toast.success(`Generated captions for ${done} images`);
+      pendo.track("batch_captions_generated", {
+        totalImages: analyzedImages.length,
+        successCount: done,
+        failedCount: analyzedImages.length - done,
+      });
     } finally {
       setCaptionGenerating(false);
       setCurrentFile("");
@@ -431,19 +505,38 @@ export default function App() {
       ? `${projectTitle || "album"}_all`
       : `${projectTitle || "album"}_${filterLabel}`;
 
-    toast.promise(
-      downloadSessionZip(
-        sessionId || "local",
-        zipName,
-        filteredImages.map((k) => ({ filename: k.name, url: k.url }))
-      ),
-      {
-        loading: `Packaging ${filteredImages.length} ${filterLabel} images…`,
-        success: "ZIP download started",
-        error: "Download failed",
-      }
-    );
+    const downloadPromise = downloadSessionZip(
+      sessionId || "local",
+      zipName,
+      filteredImages.map((k) => ({ filename: k.name, url: k.url }))
+    ).then(() => {
+      pendo.track("gallery_exported_zip", {
+        filterCategory: filterLabel,
+        imageCount: filteredImages.length,
+        projectTitle: (projectTitle || "album").substring(0, 100),
+        sessionId: sessionId || "local",
+        zipFilename: zipName,
+      });
+    });
+    toast.promise(downloadPromise, {
+      loading: `Packaging ${filteredImages.length} ${filterLabel} images…`,
+      success: "ZIP download started",
+      error: "Download failed",
+    });
   }, [sessionId, projectTitle, filteredImages, galleryFilter]);
+
+  useEffect(() => {
+    if (!searchQuery.trim() || analysisState !== "complete") return;
+    const timer = setTimeout(() => {
+      pendo.track("gallery_search_executed", {
+        searchQuery: searchQuery.trim().substring(0, 100),
+        resultsCount: filteredImages.length,
+        totalImages: analyzedImages.length,
+        activeFilter: galleryFilter,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery, analysisState, filteredImages.length, analyzedImages.length, galleryFilter]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // HOME SCREEN
@@ -668,6 +761,9 @@ export default function App() {
                 const data = await res.json();
                 setCleanupCount(data.deleted);
                 toast.success(`Cleaned ${data.deleted} old session(s) (>72h)`);
+                pendo.track("old_sessions_cleaned", {
+                  deletedSessionCount: data.deleted,
+                });
                 setTimeout(() => setCleanupCount(null), 3000);
               } catch { /* ignore */ }
             }}
@@ -782,7 +878,7 @@ export default function App() {
                             multiple
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => processFiles(Array.from(e.target.files ?? []))}
+                            onChange={(e) => processFiles(Array.from(e.target.files ?? []), "file_picker")}
                           />
                           <input
                             ref={folderInputRef}
@@ -791,7 +887,7 @@ export default function App() {
                             multiple
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => processFiles(Array.from(e.target.files ?? []))}
+                            onChange={(e) => processFiles(Array.from(e.target.files ?? []), "folder_picker")}
                           />
                           <button
                             onClick={() => fileInputRef.current?.click()}
@@ -807,7 +903,7 @@ export default function App() {
                           </button>
                           {uploadedImages.length > 0 && (
                             <button
-                              onClick={() => setUploadedImages([])}
+                              onClick={() => { pendo.track("upload_list_cleared", { clearedImageCount: uploadedImages.length }); setUploadedImages([]); }}
                               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-destructive/30 rounded-lg hover:bg-destructive/10 transition-colors text-destructive/70 hover:text-destructive"
                             >
                               <Trash2 className="w-3.5 h-3.5" /> Clear
@@ -1105,12 +1201,12 @@ export default function App() {
                                       onChange={(e) => setEditValue(e.target.value)}
                                       className="flex-1 text-xs bg-muted border border-border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter") { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); }
+                                        if (e.key === "Enter") { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); pendo.track("caption_edited", { imageId: img.id, imageName: img.name, imageCategory: img.category, captionLength: editValue.length }); }
                                         if (e.key === "Escape") setEditingCaption(null);
                                       }}
                                     />
                                     <button
-                                      onClick={() => { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); }}
+                                      onClick={() => { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); pendo.track("caption_edited", { imageId: img.id, imageName: img.name, imageCategory: img.category, captionLength: editValue.length }); }}
                                       className="px-2 py-1 bg-primary/20 text-primary rounded-lg text-[10px] font-medium hover:bg-primary/30 transition-colors"
                                     >
                                       Save
@@ -1171,11 +1267,11 @@ export default function App() {
                                       onChange={(e) => setEditValue(e.target.value)}
                                       className="flex-1 text-xs bg-muted border border-border rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary/50"
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter") { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); }
+                                        if (e.key === "Enter") { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); pendo.track("caption_edited", { imageId: img.id, imageName: img.name, imageCategory: img.category, captionLength: editValue.length }); }
                                         if (e.key === "Escape") setEditingCaption(null);
                                       }}
                                     />
-                                    <button onClick={() => { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); }} className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px]">Save</button>
+                                    <button onClick={() => { setCaptions((p) => ({ ...p, [img.id]: editValue })); setEditingCaption(null); pendo.track("caption_edited", { imageId: img.id, imageName: img.name, imageCategory: img.category, captionLength: editValue.length }); }} className="px-2 py-0.5 bg-primary/20 text-primary rounded text-[10px]">Save</button>
                                   </div>
                                 ) : (
                                   <div
