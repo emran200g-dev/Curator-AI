@@ -1,13 +1,11 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /
 
-# Copy requirements from your specific subfolder
-COPY ./NEW_UI/backend/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of your backend files from the subfolder
-COPY ./NEW_UI/backend/ .
+COPY main.py .
 
 EXPOSE 7860
 
